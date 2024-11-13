@@ -69,7 +69,16 @@ u8 GenSbox(u8 a) {
 }
 
 u8 GenInvSbox(u8 a) {
+    u8 r;
+    r = a;
+    
 
+
+
+
+
+
+    return r;
 }
 
 void PrintSBox(){
