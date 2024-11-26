@@ -6,8 +6,8 @@
 #include <math.h>
 
 #define _FOLD_ "./"
-#define TraceFN "AES.traces"
-#define AlignedTraceFN "AlignedAES.traces"
+#define TraceFN "trace_practice.traces"
+#define AlignedTraceFN "Aligned_pratice.traces"
 #define PlaintextFN "plain.txt"
 #define ciphertextFN "cipher.txt"
 #define startpoint 0
