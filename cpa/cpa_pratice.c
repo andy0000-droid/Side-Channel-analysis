@@ -11,7 +11,7 @@
 #define PlaintextFN "plain.txt"
 #define ciphertextFN "cipher.txt"
 #define startpoint 0
-#define endpoint 71050
+#define endpoint 125002
 
 static unsigned char Sbox[256] = {
 0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -196,7 +196,7 @@ void CPA() {
     Sxx = (double*)calloc(TraceLength, sizeof(double));
     Sxy = (double*)calloc(TraceLength, sizeof(double));
     corrT = (double*)calloc(TraceLength, sizeof(double));
-
+    clock_t start = clock();
     for (i = 0; i < TraceNum; i++) {
         for (j = startpoint; j < TraceLength; j++) {
             Sx[j] += data[i][j];
@@ -240,7 +240,9 @@ void CPA() {
             fclose(wfp);
             printf(".");
         }
-        printf("%02d_block : maxkey(%02x), maxcorr(%lf)\n", i, maxkey, max);
+        clock_t end = clock();
+        printf("%02d_block : maxkey(%02x), maxcorr(%lf). Time Taken:%lf\n", i, maxkey, max, (double)(end - start));
+
     }
     free(Sx);
     free(Sxx);
