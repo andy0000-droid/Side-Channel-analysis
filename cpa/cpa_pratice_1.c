@@ -8,12 +8,12 @@
 #define _FOLD_ "./"
 #define TraceFN "pratice.traces"
 #define AlignedTraceFN "Aligned_pratice.traces"
-#define PlaintextFN "plain1.txt"
+#define PlaintextFN "plain.txt"
 #define ciphertextFN "cipher.txt"
 #define startpoint 0
 #define endpoint 125002
-
-
+#define CLOCK_PER_SEC ((clock_t) 1000)
+#define CLOCK_PER_MIN ((clock_t) CLOCK_PER_SEC*60)
 
 static unsigned char Sbox[256] = {
 0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -167,33 +167,11 @@ void CPA() {
     }
     for(i = 0; i < TraceNum; i++) {
         fread(data[i], sizeof(float), TraceLength, rfp);
+        printf("%lf, ", data[i]);
     }
     fclose(rfp);
 
-    sprintf(buf, "%s%s", _FOLD_, PlaintextFN);
-    rfp = fopen(buf, "r");
-    if (rfp == NULL) {
-        printf("FILE OPEN ERROR\n");
-    }
-    plaintext = (unsigned char**)calloc(TraceNum, sizeof(unsigned char*));
-    for(i = 0; i < TraceNum; i++) {
-        plaintext[i] = (unsigned char*)calloc(16, sizeof(unsigned char));
-    }
-    for(i = 0; i < TraceNum; i++) {
-        fgets(temp, 34, rfp);
-        for (j = 0; j < 16; j++) {
-            x = temp[2 * j]; y = temp[2 * j + 1];
-            if (x >= 'A' && x <= 'Z') x = x - 'A' + 10;
-            else if (x >= 'a' && x <= 'z') x = x - 'a' + 10;
-            else if (x >= '0' && x <= '9') x -= '0';
-            if (y >= 'A' && y <= 'Z') y = y - 'A' + 10;
-            else if (y >= 'a' && y <= 'z') y = y - 'a' + 10;
-            else if (y >= '0' && y <= '9') y -= '0';
-            plaintext[i][j] = x * 16 + y;
-        }
-    }
-    fclose(rfp);
-    
+
     Sx = (double*)calloc(TraceLength, sizeof(double));
     Sxx = (double*)calloc(TraceLength, sizeof(double));
     Sxy = (double*)calloc(TraceLength, sizeof(double));
@@ -243,7 +221,7 @@ void CPA() {
             printf(".");
         }
         clock_t end = clock();
-        printf("%02d_block : maxkey(%02x), maxcorr(%lf). Time Taken:%lf\n", i, maxkey, max, (double)(end - start));
+        printf("%02d_block : maxkey(%02x), maxcorr(%lf). Time Taken:%lf, %lf\n", i, maxkey, max, (double)(end - start)/CLOCK_PER_MIN, (double)(end - start)/CLOCK_PER_SEC);
 
     }
     free(Sx);

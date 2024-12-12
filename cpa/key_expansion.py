@@ -385,7 +385,7 @@ def prettyPrint(w):
 
 def main():
     # hardcoding input key for demonstration purposes, could be read in from user/program via cmd/gui etc.
-    """
+
     key = [
         "01",
         "23",
@@ -403,25 +403,6 @@ def main():
         "bc",
         "de",
         "f0",
-    ]
-    """
-    key = [
-        "00",
-        "01",
-        "02",
-        "03",
-        "04",
-        "05",
-        "06",
-        "07",
-        "08",
-        "09",
-        "0a",
-        "0b",
-        "0c",
-        "0d",
-        "0e",
-        "0f",
     ]
 
     # expand key
