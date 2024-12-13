@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     "/Users/choisoonwook/Desktop/Univ./부채널분석/Side-Channel-analysis/ARIA/ARIA-reference-050117"
+relocations:     []
+...

@@ -21,6 +21,9 @@
 
 typedef unsigned char Byte;
 
+#define MASK_IN  0x5A  // 입력 마스킹 값
+#define MASK_OUT 0xA5  // 출력 마스킹 값
+
 const Byte S[4][256] = {
 	// S-box type 1
 {
@@ -102,42 +105,58 @@ const Byte KRK[3][16] = {
   {0xdb, 0x92, 0x37, 0x1d, 0x21, 0x26, 0xe9, 0x70, 0x03, 0x24, 0x97, 0x75, 0x04, 0xe8, 0xc9, 0x0e}
 };
 
-// Diffusion Layer
-void DL (const Byte *i, Byte *o)
-{
-	Byte T;
-  
-	T = i[ 3] ^ i[ 4] ^ i[ 9] ^ i[14];
-	o[ 0] = i[ 6] ^ i[ 8] ^ i[13] ^ T;
-	o[ 5] = i[ 1] ^ i[10] ^ i[15] ^ T;
-	o[11] = i[ 2] ^ i[ 7] ^ i[12] ^ T;
-	o[14] = i[ 0] ^ i[ 5] ^ i[11] ^ T;
-	T = i[ 2] ^ i[ 5] ^ i[ 8] ^ i[15];
-	o[ 1] = i[ 7] ^ i[ 9] ^ i[12] ^ T;
-	o[ 4] = i[ 0] ^ i[11] ^ i[14] ^ T;
-	o[10] = i[ 3] ^ i[ 6] ^ i[13] ^ T;
-	o[15] = i[ 1] ^ i[ 4] ^ i[10] ^ T;
-	T = i[ 1] ^ i[ 6] ^ i[11] ^ i[12];
-	o[ 2] = i[ 4] ^ i[10] ^ i[15] ^ T;
-	o[ 7] = i[ 3] ^ i[ 8] ^ i[13] ^ T;
-	o[ 9] = i[ 0] ^ i[ 5] ^ i[14] ^ T;
-	o[12] = i[ 2] ^ i[ 7] ^ i[ 9] ^ T;
-	T = i[ 0] ^ i[ 7] ^ i[10] ^ i[13];
-	o[ 3] = i[ 5] ^ i[11] ^ i[14] ^ T;
-	o[ 6] = i[ 2] ^ i[ 9] ^ i[12] ^ T;
-	o[ 8] = i[ 1] ^ i[ 4] ^ i[15] ^ T;
-	o[13] = i[ 3] ^ i[ 6] ^ i[ 8] ^ T;
+Byte maskedSBoxTransform(const Byte *S, Byte input, Byte maskIn, Byte maskOut) {
+  Byte maskedInput = input ^ maskIn;       // 입력에 마스킹 적용
+  Byte maskedOutput = S[maskedInput];     // S-Box 변환 수행
+  maskedOutput ^= maskOut;
+  //printf("Masked Input: %02x, S-Box Output: %02x\n", maskedInput, maskedOutput);
+  return maskedOutput;                    // 출력에 마스킹 적
 }
+
+// Diffusion Layer
+void maskedDL(const Byte *i, Byte *o, Byte mask) {
+  Byte T;
+  Byte maskedInput[16];
+  Byte maskedOutput[16];
+
+  // 입력에 마스킹 적용
+  for (int idx = 0; idx < 16; idx++) {
+      maskedInput[idx] = i[idx] ^ MASK_IN;
+  }
+
+  T = maskedInput[3] ^ maskedInput[4] ^ maskedInput[9] ^ maskedInput[14];
+  maskedOutput[0] = maskedInput[6] ^ maskedInput[8] ^ maskedInput[13] ^ T;
+  maskedOutput[5] = maskedInput[1] ^ maskedInput[10] ^ maskedInput[15] ^ T;
+  maskedOutput[11] = maskedInput[2] ^ maskedInput[7] ^ maskedInput[12] ^ T;
+  maskedOutput[14] = maskedInput[0] ^ maskedInput[5] ^ maskedInput[11] ^ T;
+
+  T = maskedInput[2] ^ maskedInput[5] ^ maskedInput[8] ^ maskedInput[15];
+  maskedOutput[1] = maskedInput[7] ^ maskedInput[9] ^ maskedInput[12] ^ T;
+  maskedOutput[4] = maskedInput[0] ^ maskedInput[11] ^ maskedInput[14] ^ T;
+  maskedOutput[10] = maskedInput[3] ^ maskedInput[6] ^ maskedInput[13] ^ T;
+  maskedOutput[15] = maskedInput[1] ^ maskedInput[4] ^ maskedInput[10] ^ T;
+
+  // 출력에 마스킹 적용
+  for (int idx = 0; idx < 16; idx++) {
+      o[idx] = maskedOutput[idx] ^ MASK_OUT;
+  }
+  for (int idx = 0; idx < 16; idx++) {
+    printf("Masked Input[%d]: %02x, Masked Output[%d]: %02x\n", idx, i[idx], idx, o[idx]);
+}
+}
+
 // Right-rotate 128 bit source string s by n bits and XOR it to target string t
-void RotXOR (const Byte *s, int n, Byte *t)
-{
-	int i, q;
-  
-	q = n/8; n %= 8;
-	for (i = 0; i < 16; i++) {
-		t[(q+i) % 16] ^= (s[i] >> n);
-		if (n != 0) t[(q+i+1) % 16] ^= (s[i] << (8-n));
-	}
+void maskedRotXOR(const Byte *s, int n, Byte *t, Byte mask) {
+  int i, q;
+
+  q = n / 8;
+  n %= 8;
+  for (i = 0; i < 16; i++) {
+      Byte maskedInput = s[i] ^ mask; // 입력 마스킹
+      t[(q + i) % 16] ^= (maskedInput >> n);
+      if (n != 0)
+          t[(q + i + 1) % 16] ^= (maskedInput << (8 - n));
+  }
 }
 
 void printBlock(Byte *b);
@@ -150,7 +169,7 @@ int EncKeySetup(const Byte *w0, Byte *e, int keyBits) {
   
 	q = (keyBits - 128) / 64;
 	for (i = 0; i < 16; i++) t[i] = S[     i  % 4][KRK[q][i   ] ^ w0[i]];
-	DL (t, w1);
+	maskedDL (t, w1, MASK_IN);
 	if (R==14)
 		for (i = 0; i <  8; i++) w1[i] ^= w0[16+i];
 	else if (R==16)
@@ -158,36 +177,36 @@ int EncKeySetup(const Byte *w0, Byte *e, int keyBits) {
   
 	q = (q==2)? 0 : (q+1);
 	for (i = 0; i < 16; i++) t[i] = S[(2 + i) % 4][KRK[q][i] ^ w1[i]];
-	DL (t, w2);
+	maskedDL (t, w2, MASK_IN);
 	for (i = 0; i < 16; i++) w2[i] ^= w0[i];
   
 	q = (q==2)? 0 : (q+1);
 	for (i = 0; i < 16; i++) t[i] = S[     i  % 4][KRK[q][i] ^ w2[i]];
-	DL (t, w3);
+	maskedDL (t, w3, MASK_IN);
 	for (i = 0; i < 16; i++) w3[i] ^= w1[i];
   
 	for (i = 0; i < 16*(R+1); i++) e[i] = 0;
   
-	RotXOR (w0, 0, e      ); RotXOR (w1,  19, e      );
-	RotXOR (w1, 0, e +  16); RotXOR (w2,  19, e +  16);
-	RotXOR (w2, 0, e +  32); RotXOR (w3,  19, e +  32);
-	RotXOR (w3, 0, e +  48); RotXOR (w0,  19, e +  48);
-	RotXOR (w0, 0, e +  64); RotXOR (w1,  31, e +  64);
-	RotXOR (w1, 0, e +  80); RotXOR (w2,  31, e +  80);
-	RotXOR (w2, 0, e +  96); RotXOR (w3,  31, e +  96);
-	RotXOR (w3, 0, e + 112); RotXOR (w0,  31, e + 112);
-	RotXOR (w0, 0, e + 128); RotXOR (w1,  67, e + 128);
-	RotXOR (w1, 0, e + 144); RotXOR (w2,  67, e + 144);
-	RotXOR (w2, 0, e + 160); RotXOR (w3,  67, e + 160);
-	RotXOR (w3, 0, e + 176); RotXOR (w0,  67, e + 176);
-	RotXOR (w0, 0, e + 192); RotXOR (w1,  97, e + 192);
+	maskedRotXOR (w0, 0, e      , MASK_IN); maskedRotXOR (w1,  19, e      , MASK_IN);
+	maskedRotXOR (w1, 0, e +  16, MASK_IN); maskedRotXOR (w2,  19, e +  16, MASK_IN);
+	maskedRotXOR (w2, 0, e +  32, MASK_IN); maskedRotXOR (w3,  19, e +  32, MASK_IN);
+	maskedRotXOR (w3, 0, e +  48, MASK_IN); maskedRotXOR (w0,  19, e +  48, MASK_IN);
+	maskedRotXOR (w0, 0, e +  64, MASK_IN); maskedRotXOR (w1,  31, e +  64, MASK_IN);
+	maskedRotXOR (w1, 0, e +  80, MASK_IN); maskedRotXOR (w2,  31, e +  80, MASK_IN);
+	maskedRotXOR (w2, 0, e +  96, MASK_IN); maskedRotXOR (w3,  31, e +  96, MASK_IN);
+	maskedRotXOR (w3, 0, e + 112, MASK_IN); maskedRotXOR (w0,  31, e + 112, MASK_IN);
+	maskedRotXOR (w0, 0, e + 128, MASK_IN); maskedRotXOR (w1,  67, e + 128, MASK_IN);
+	maskedRotXOR (w1, 0, e + 144, MASK_IN); maskedRotXOR (w2,  67, e + 144, MASK_IN);
+	maskedRotXOR (w2, 0, e + 160, MASK_IN); maskedRotXOR (w3,  67, e + 160, MASK_IN);
+	maskedRotXOR (w3, 0, e + 176, MASK_IN); maskedRotXOR (w0,  67, e + 176, MASK_IN);
+	maskedRotXOR (w0, 0, e + 192, MASK_IN); maskedRotXOR (w1,  97, e + 192, MASK_IN);
 	if (R > 12) {
-		RotXOR (w1, 0, e + 208); RotXOR (w2,  97, e + 208);
-		RotXOR (w2, 0, e + 224); RotXOR (w3,  97, e + 224);
+		maskedRotXOR (w1, 0, e + 208, MASK_IN); maskedRotXOR (w2,  97, e + 208, MASK_IN);
+		maskedRotXOR (w2, 0, e + 224, MASK_IN); maskedRotXOR (w3,  97, e + 224, MASK_IN);
 	}
 	if (R > 14) {
-		RotXOR (w3, 0, e + 240); RotXOR (w0,  97, e + 240);
-		RotXOR (w0, 0, e + 256); RotXOR (w1, 109, e + 256);
+		maskedRotXOR (w3, 0, e + 240, MASK_IN); maskedRotXOR (w0,  97, e + 240, MASK_IN);
+		maskedRotXOR (w0, 0, e + 256, MASK_IN); maskedRotXOR (w1, 109, e + 256, MASK_IN);
 	}
 	return R;
 }
@@ -204,29 +223,31 @@ int DecKeySetup(const Byte *w0, Byte *d, int keyBits) {
 		d[16*R + j] = t[j];
 	}
 	for (i = 1; i <= R/2; i++){
-		DL (d + i*16, t);
-		DL (d + (R-i)*16, d + i*16);
+		maskedDL (d + i*16, t, MASK_IN);
+		maskedDL (d + (R-i)*16, d + i*16, MASK_IN);
 		for (j = 0; j < 16; j++) d[(R-i)*16 + j] = t[j];
 	}
 	return R;
 }
 // Encryption and decryption rountine
 // p: plain text, e: round keys, c: ciphertext
-void Crypt(const Byte *p, int R, const Byte *e, Byte *c)
-{
-	int i, j;
-	Byte t[16];
-  
-	for (j = 0; j < 16; j++) c[j] = p[j];
-	for (i = 0; i < R/2; i++)
-	{
-		for (j = 0; j < 16; j++) t[j] = S[     j  % 4][e[j] ^ c[j]];
-		DL(t, c); e += 16; // F1
-		for (j = 0; j < 16; j++) t[j] = S[(2 + j) % 4][e[j] ^ c[j]];
-		DL(t, c); e += 16; // F2
-	}
-	DL(c, t);
-	for (j = 0; j < 16; j++) c[j] = e[j] ^ t[j];
+void maskedCrypt(const Byte *p, int R, const Byte *e, Byte *c, Byte maskIn, Byte maskOut) {
+  int i, j;
+  Byte t[16];
+
+  for (j = 0; j < 16; j++) c[j] = p[j] ^ maskIn; // 입력에 마스킹 적용
+  for (i = 0; i < R / 2; i++) {
+      for (j = 0; j < 16; j++)
+          t[j] = maskedSBoxTransform(S[j % 4], e[j] ^ c[j], maskIn, maskOut); // 마스킹된 S-Box 적용
+      maskedDL(t, c, maskOut); // Diffusion Layer 적용
+      e += 16;
+      for (j = 0; j < 16; j++)
+          t[j] = maskedSBoxTransform(S[(2 + j) % 4], e[j] ^ c[j], maskIn, maskOut);
+      maskedDL(t, c, maskOut);
+      e += 16;
+  }
+  maskedDL(c, t, maskOut);
+  for (j = 0; j < 16; j++) c[j] = (e[j] ^ t[j]) ^ maskOut; // 출력 마스킹 제거
 }
 
 void printBlockOfLength(Byte *b, int len) {
@@ -256,7 +277,7 @@ void ARIA_test() {
 	for (i=16; i<24; i++)
 		mk[i]=(i-16)*0x11;
   
-  Crypt(p, EncKeySetup(mk, rk, 192), rk, c);
+  maskedCrypt(p, EncKeySetup(mk, rk, 192), rk, c, MASK_IN, MASK_OUT);
   printf("BEGIN testing basic encryption...\n");
   printf("Testing whether the encryption would come out correctly, \
 for 14-round ARIA.\n");
@@ -269,9 +290,9 @@ for 14-round ARIA.\n");
     if (c[i]!=cryptResult[i])
       flag=1;
   if (flag==1)
-	  printf("The result is incorrect!\n");
+    printf("The result is incorrect!\n");
   else
-	  printf("Okay.  The result is correct.\n");
+    printf("Okay.  The result is correct.\n");
   printf("END   testing basic encryption.\n\n");
   
   for (i=0; i<32; i++)
@@ -287,19 +308,19 @@ we may recover the plaintext by decrypting the \
 encrypted ciphertext.\n");
   EncKeySetup(mk, rk, 256);
   printf("plaintext : "); printBlock(p); printf("\n");
-  Crypt(p, 16, rk, c);
+  maskedCrypt(p, 16, rk, c, MASK_IN, MASK_OUT);
   printf("ciphertext: "); printBlock(c); printf("\n");
   DecKeySetup(mk, rk, 256);
-  Crypt(c, 16, rk, p);
+  maskedCrypt(c, 16, rk, p, MASK_IN, MASK_OUT);
   printf("decrypted : "); printBlock(p); printf("\n");
   flag=0;
   for (i=0; i<16; i++)
     if (p[i]!=0)
       flag=1;
   if (flag==1)
-	  printf("The result is incorrect!\n");
+    printf("The result is incorrect!\n");
   else
-	  printf("Okay.  The result is correct.\n");
+    printf("Okay.  The result is correct.\n");
   printf("END   testing the roundtrip.\n");
 }
 
